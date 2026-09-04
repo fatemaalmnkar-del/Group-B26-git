@@ -1,0 +1,254 @@
+# ============================================================
+# GitHub Actions - Deploy React / Vite to GitHub Pages
+# الهدف:
+# بناء مشروع الـ Frontend ونشره تلقائياً على GitHub Pages
+# ============================================================
+
+
+# ------------------------------------------------------------
+# 1. اسم الـ Workflow
+# هذا الاسم يظهر داخل GitHub في قسم Actions
+# الاسم ليس ثابتاً، ويمكن تغييره
+# ------------------------------------------------------------
+name: Deploy Frontend to GitHub Pages
+
+
+# ------------------------------------------------------------
+# 2. متى يبدأ الـ Workflow؟
+#
+# push:
+# يشغّل الـ Workflow تلقائياً عندما نعمل Push على master
+#
+# workflow_dispatch:
+# يسمح لنا بتشغيل الـ Workflow يدوياً من GitHub
+# ------------------------------------------------------------
+on:
+  push:
+    branches:
+      - master
+
+  workflow_dispatch:
+
+
+# ------------------------------------------------------------
+# 3. الصلاحيات Permissions
+#
+# contents: read
+# يسمح للـ Workflow بقراءة ملفات الـ Repository
+#
+# pages: write
+# يسمح له بالنشر على GitHub Pages
+#
+# id-token: write
+# صلاحية تُستخدم للمصادقة أثناء عملية النشر
+# ------------------------------------------------------------
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+
+# ------------------------------------------------------------
+# 4. الـ Job
+#
+# jobs:
+# يحتوي المهام التي سينفذها الـ Workflow
+#
+# deploy:
+# اسم الـ Job، ويمكن تغييره
+# ------------------------------------------------------------
+jobs:
+  deploy:
+
+
+    # --------------------------------------------------------
+    # Runner
+    #
+    # GitHub سيشغّل المهمة على جهاز Windows افتراضي
+    # وليس على جهازنا الشخصي
+    # --------------------------------------------------------
+    runs-on: windows-latest
+
+
+    # --------------------------------------------------------
+    # Environment
+    #
+    # نحدد أن عملية النشر مرتبطة بـ GitHub Pages
+    #
+    # url:
+    # بعد نجاح النشر يحتوي رابط الموقع المنشور
+    # --------------------------------------------------------
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+
+    # --------------------------------------------------------
+    # متغيرات نستخدمها داخل الـ Workflow
+    #
+    # PROJECT_DIR:
+    # المجلد الذي يوجد بداخله مشروع React
+    #
+    # BASE_URL:
+    # المسار الذي سيستخدمه الموقع على GitHub Pages
+    #
+    # ⚠️ هاتان القيمتان ليستا ثابتتين لكل المشاريع
+    # --------------------------------------------------------
+    env:
+      PROJECT_DIR: frontend
+      BASE_URL: /Group-B26/
+
+
+    # --------------------------------------------------------
+    # الخطوات التي ستُنفذ بالترتيب
+    # --------------------------------------------------------
+    steps:
+
+
+      # ======================================================
+      # الخطوة 1: جلب كود المشروع
+      #
+      # checkout:
+      # يجعل ملفات الـ Repository متاحة للـ Runner
+      # حتى يستطيع GitHub Actions العمل عليها
+      # ======================================================
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+
+      # ======================================================
+      # الخطوة 2: التحقق من بنية المشروع
+      #
+      # نتأكد أن مجلد frontend موجود
+      # ونتأكد أن package.json موجود بداخله
+      #
+      # إذا لم يكن موجوداً:
+      # نوقف الـ Workflow بـ exit 1
+      # ======================================================
+      - name: Validate project structure
+        shell: pwsh
+
+        run: |
+          Write-Output "Checking project directory..."
+
+          if (-not (Test-Path $env:PROJECT_DIR)) {
+            Write-Error "Project directory '$env:PROJECT_DIR' not found!"
+            exit 1
+          }
+
+          Write-Output "Contents of $env:PROJECT_DIR:"
+          Get-ChildItem $env:PROJECT_DIR
+
+          if (-not (Test-Path "$env:PROJECT_DIR/package.json")) {
+            Write-Error "package.json not found in $env:PROJECT_DIR!"
+            exit 1
+          }
+
+          Write-Output "Project structure is valid."
+
+
+      # ======================================================
+      # الخطوة 3: تجهيز Node.js
+      #
+      # مشروع React يحتاج Node.js و npm
+      #
+      # node-version:
+      # نسخة Node.js التي سنستخدمها
+      #
+      # cache: npm
+      # يسمح باستخدام Cache لتسريع تثبيت المكتبات
+      # ======================================================
+      - name: Setup Node
+        uses: actions/setup-node@v4
+
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: ${{ env.PROJECT_DIR }}/package-lock.json
+
+
+      # ======================================================
+      # الخطوة 4: تثبيت Dependencies
+      #
+      # working-directory:
+      # يعني نفّذ الأوامر داخل مجلد frontend
+      #
+      # إذا package-lock.json موجود:
+      # نستخدم npm ci
+      #
+      # وإذا غير موجود:
+      # نستخدم npm install
+      # ======================================================
+      - name: Install dependencies
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: pwsh
+
+        run: |
+          if (Test-Path "package-lock.json") {
+            npm ci
+          }
+          else {
+            npm install
+          }
+
+
+      # ======================================================
+      # الخطوة 5: Build للمشروع
+      #
+      # npm run build:
+      # ينشئ نسخة Production جاهزة للنشر
+      #
+      # في مشروع Vite يتم إنشاء مجلد اسمه dist
+      #
+      # --base:
+      # يخبر Vite بالمسار الصحيح للمشروع على GitHub Pages
+      # ======================================================
+      - name: Build project
+        working-directory: ${{ env.PROJECT_DIR }}
+        shell: pwsh
+
+        run: |
+          npm run build -- --base=${{ env.BASE_URL }}
+
+          # إنشاء ملف .nojekyll
+          # حتى يتعامل GitHub Pages مع الملفات كما هي
+          New-Item -Path "dist/.nojekyll" -ItemType File -Force
+
+
+      # ======================================================
+      # الخطوة 6: تجهيز GitHub Pages
+      #
+      # هذا Action يجهّز إعدادات Pages المطلوبة للنشر
+      # ======================================================
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+
+      # ======================================================
+      # الخطوة 7: رفع ملفات الـ Build
+      #
+      # Artifact:
+      # الملفات الناتجة من الـ Build والتي سننشرها
+      #
+      # عند Vite الملفات الجاهزة موجودة في:
+      # frontend/dist
+      # ======================================================
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+
+        with:
+          path: ${{ env.PROJECT_DIR }}/dist
+
+
+      # ======================================================
+      # الخطوة 8: النشر النهائي
+      #
+      # هنا GitHub يأخذ الـ Artifact
+      # وينشره فعلياً على GitHub Pages
+      #
+      # id: deployment
+      # نستخدمه فوق حتى نأخذ رابط الموقع الناتج
+      # ======================================================
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
