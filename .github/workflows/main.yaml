@@ -164,7 +164,7 @@ jobs:
         with:
           node-version: "20"
           cache: npm
-          cache-dependency-path: ${{ env.PROJECT_DIR }}/package-lock.json
+          cache-dependency-path: frontend/package-lock.json
 
 
       # ======================================================
@@ -180,7 +180,7 @@ jobs:
       # نستخدم npm install
       # ======================================================
       - name: Install dependencies
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: frontend
         shell: pwsh
 
         run: |
@@ -204,7 +204,7 @@ jobs:
       # يخبر Vite بالمسار الصحيح للمشروع على GitHub Pages
       # ======================================================
       - name: Build project
-        working-directory: ${{ env.PROJECT_DIR }}
+        working-directory: frontend
         shell: pwsh
 
         run: |
@@ -237,7 +237,7 @@ jobs:
         uses: actions/upload-pages-artifact@v3
 
         with:
-          path: ${{ env.PROJECT_DIR }}/dist
+          path: frontend/dist
 
 
       # ======================================================

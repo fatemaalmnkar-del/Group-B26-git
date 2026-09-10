@@ -4,5 +4,5 @@ import { defineConfig } from 'vite'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react()],
-  // base: '/Group-B26-git/',
+  base: '/Group-B26-git/',
 })
